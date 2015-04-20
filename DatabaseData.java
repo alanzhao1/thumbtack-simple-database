@@ -53,7 +53,7 @@ public class DatabaseData {
      *          which is what is done by the HashMap get() function
      */
 
-    public String retVal(String name){
+    public String getVal(String name){
         return dbData.get(name);
     }
 
@@ -83,10 +83,12 @@ public class DatabaseData {
      * This function returns the number of varibles with value equal
      * to a given value
      * @param value the value to check
-     * @returns an Integer containing the number of occurances of value
+     * @returns an Integer containing the number of occurances of value, 0 if value does not exist
      */
 
     public Integer numEqualTo(String value){
+        if (numValue.get(value) == null)
+            return new Integer(0);
         return numValue.get(value);
     }
 }
