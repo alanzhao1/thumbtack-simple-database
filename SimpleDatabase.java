@@ -48,7 +48,7 @@ public class SimpleDatabase {
         // Split the command into individual words   
         String[] splitCmd = command.split(" ");
 
-        // Create a new LinkedList in the stack if statement is a begin statement
+        // Create a new begin statement in the stack if statement is a begin statement
         if (splitCmd[0].equalsIgnoreCase(DBConst.BEGIN)){
             if(splitCmd.length == 1){
                 transactStack.push(new String(DBConst.BEGIN));
@@ -58,7 +58,7 @@ public class SimpleDatabase {
             return;
         }
  
-        // On rollback, execute reversible commands
+        // On rollback, execute reverse commands
         if (splitCmd[0].equalsIgnoreCase(DBConst.ROLLBACK)){
             if(splitCmd.length == 1){
                 // If stack is empty, return error message and abort
