@@ -16,98 +16,115 @@ import java.io.InputStreamReader;
 // Start of main class
 public class SimpleDatabase {
 
-    // Stack containing linked lists of commands
-    // Stack used for nesting of transactions
-    // LinkedList containing commands used as implementation of Queue for running commands in order of entry
+    // Stack containing reverse commands 
     
-    private Stack<LinkedList<String>> transactStack;
+    private Stack<String> transactStack;
 
     // Private DatabaseData object containing the data
     // DatabaseData class located in DatabaseData.java
     
     private DatabaseData theData;
+    
+    // Private boolean containing letting us know if we should commit all
+    // transactions
+    private boolean CommitAll; 
 
     // Constructor function
-    // Initializes theData and Stack
+    // Initializes theData, Stack, and Boolean
     public SimpleDatabase() {
         transactStack = new Stack<>();
         theData = new DatabaseData();
+        CommitAll = true;
     }
 
-    /**
-     * This function first checks for transaction statments or transaction blocks
-     * If neithe is found, then pass to main parsing function
-     * @param command the command
+   /**
+     * This command interprets and runs the main command
+     * It also handles the processing of transactions using
+     * the stack
+     * @param command a string containing the command to be run
      */
-
-    public void transactCheck(String command) {
-         // Push statement into Linked List if there is an item in the stack
-        if (!transactStack.empty()){
-            LinkedList<String> currentTransact = transactStack.pop(); // Pop the current transaction
-            currentTransact.add(command); // Append the current command to  the current transaction
-            transactStack.push(currentTransact); // Push the modified transaction back into the stack
-            return;
-        }       
-        
-        //Split the strings into commands 
+    public void runCmd(String command) {
+         
+        // Split the command into individual words   
         String[] splitCmd = command.split(" ");
 
         // Create a new LinkedList in the stack if statement is a begin statement
         if (splitCmd[0].equalsIgnoreCase(DBConst.BEGIN)){
-            if(splitCmd.length == 1)
-                transactStack.push(new LinkedList<>());
-             else
+            if(splitCmd.length == 1){
+                transactStack.push(new String(DBConst.BEGIN));
+                CommitAll = false;
+             } else
                 System.out.println("Syntax error for BEGIN statement");
             return;
         }
  
-        // Remove last block on rollback
+        // On rollback, execute reversible commands
         if (splitCmd[0].equalsIgnoreCase(DBConst.ROLLBACK)){
             if(splitCmd.length == 1){
                 // If stack is empty, return error message and abort
                 if (transactStack.empty())
                     System.out.println("NO TRANSACTION");
-                else // Delete the current transaction from stack
-                   transactStack.pop(); 
+                else {// Delete the current transaction from stack
+                    String theCommand = transactStack.pop();
+                    CommitAll = true; // Set flag
+                    
+                    // Loop until BEGIN statement is reached;
+                    while(!theCommand.equals(DBConst.BEGIN)){
+                        runCmd(theCommand);
+                        theCommand = transactStack.pop();
+                    }
+
+                    // Reset the CommitAll flag if the stack is now empty
+                    if (transactStack.empty())
+                    CommitAll = true;
+                }
+ 
             } else
                 System.out.println("Syntax error for ROLLBACK statement");
             return;
         }
 
-        // Iterate through the last transaction block on commit
+        // Remove reversible transactions on commit 
         if (splitCmd[0].equalsIgnoreCase(DBConst.COMMIT)){
             if(splitCmd.length == 1){
                 // If stack is empty, return error message and abort
                 if (transactStack.empty())
                     System.out.println("NO TRANSACTION");
-                else{ // Else iterate through the loop
-                    LinkedList<String> currentTransact = transactStack.pop();
-                    for(String currentCommand : currentTransact)
-                        runCmd(currentCommand);
+                else{ // Else pop items and remove 
+                    String theCommand = new String(""); 
+                    while(!theCommand.equals(DBConst.BEGIN)){
+                        theCommand = null;
+                        theCommand = transactStack.pop();
+                    } 
+                    
+                    // Reset the CommitAll flag if the stack is now empty
+                    if (transactStack.empty())
+                        CommitAll = true;
                 }
             } else
                 System.out.println("Syntax error for COMMIT statement");
             return;
         }
 
-    
-        // Else pass command to command interpreter
-        runCmd(command);
-    }
 
-    /**
-     * This command interprets and runs the main command
-     * @param command the command to be run
-     */
-    public void runCmd(String command) {
-        // Split the command into individual words   
-        String[] splitCmd = command.split(" ");
-        
         // Check for SET command
         if (splitCmd[0].equalsIgnoreCase(DBConst.SET)){
-            if (splitCmd.length == DBConst.NUM_WORDS_IN_SET)
+            if (splitCmd.length == DBConst.NUM_WORDS_IN_SET){
+                
+                //Create a reverse command if we are in a transaction
+                if(!CommitAll){
+                     
+                    // If this variable did not exist before
+                    // Create a transaction that will unset the variable
+                    if (theData.getVal(splitCmd[1])==null)
+                        transactStack.push(new String("UNSET" + " " +splitCmd[1]));
+                    
+                    // Else create a set command that sets to the original value
+                    else
+                        transactStack.push(new String("SET" + " " + splitCmd[1]+" " + theData.getVal(splitCmd[1])));
+                }    
                 theData.setVal(splitCmd[1], splitCmd[2]);
-            else
+            }else
                 System.out.println("Syntax error for SET statement");
             return;
         }            
@@ -128,11 +145,17 @@ public class SimpleDatabase {
 
         // Check for UNSET command
         if (splitCmd[0].equalsIgnoreCase(DBConst.UNSET)){
-            if (splitCmd.length == DBConst.NUM_WORDS_IN_UNSET)
+            if (splitCmd.length == DBConst.NUM_WORDS_IN_UNSET){
+            
+                // If we are currently in a transaction
+                // Push a command that sets the original variable/value pair into the stack
+                if(!CommitAll)
+                    transactStack.push(new String("SET" + " " + splitCmd[1]+" " + theData.getVal(splitCmd[1])));
+            
                 theData.unsetVal(splitCmd[1]);
-            else
+            }else
                 System.out.println("Syntax error for UNSET statement");
-            return;
+        return;
         }            
 
         // Check for NUMEQLTO
@@ -168,11 +191,11 @@ public class SimpleDatabase {
         try(BufferedReader br = new BufferedReader(new InputStreamReader(System.in))){
 
             while((theCommand = br.readLine())!=null) // Should catch EOF
-                myDB.transactCheck(theCommand);
+                myDB.runCmd(theCommand);
         } catch(IOException e){
             System.out.println("I/O Error while reading command");
             System.exit(1);
         }
     }
-}
+} 
 
